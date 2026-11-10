@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MLQ Solo</string>
+    <string name="title_activity_main">MLQ Solo</string>
+    <string name="package_name">gg.maxlevel.mlqsolo</string>
+    <string name="custom_url_scheme">gg.maxlevel.mlqsolo</string>
+</resources>

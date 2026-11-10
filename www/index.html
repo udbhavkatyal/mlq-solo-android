@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MLQ Solo</title><meta name="theme-color" content="#131417">
+<style>
+  html,body{margin:0;height:100%;background:#131417;color:#ececf1;font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  #boot{position:fixed;inset:0;display:grid;place-items:center;text-align:center;padding:24px}
+  #boot img{width:88px;height:88px;border-radius:22px;animation:b 1.6s ease-in-out infinite}
+  #boot p{margin:18px 0 0;color:#9b9daa;font-size:14px}
+  #boot button{margin-top:16px;border:0;border-radius:12px;padding:12px 22px;background:#8b5cf6;color:#fff;font:inherit;font-weight:600}
+  @keyframes b{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.94);opacity:.8}}
+</style>
+<script>
+// MLQ Solo for Android. This page never changes: it runs the newest MLQ Solo screens, which a PC puts in the cloud after
+// every update (Supabase Storage: web/latest.json → web/v<version>/). The version this phone ran last is remembered and
+// its files stay in the phone's cache, so MLQ Solo still opens on a weak connection.
+(function () {
+  var S = "https://fxqtrzzlplnkoxcpanqc.supabase.co/storage/v1/object/public/web/";
+  var KEY = "solo.webver";
+  function show(msg, retry) {
+    document.getElementById("msg").textContent = msg;
+    document.getElementById("retry").style.display = retry ? "inline-block" : "none";
+  }
+  function timeout(p, ms) { return Promise.race([p, new Promise(function (_, no) { setTimeout(function () { no(new Error("timeout")); }, ms); })]); }
+  async function start() {
+    show("Opening MLQ Solo…", false);
+    var ver = null, last = null;
+    try { last = localStorage.getItem(KEY); } catch (e) {}
+    // the newest version; a slow network doesn't hold the app up: after 0.6 s the version this phone ran last opens
+    // (the app checks again once it's open and moves up when there's a newer one)
+    var newest = timeout(fetch(S + "latest.json?t=" + Date.now(), { cache: "no-store" }), 7000)
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { if (j && j.version) { try { localStorage.setItem(KEY, String(j.version)); } catch (e) {} return String(j.version); } return null; })
+      .catch(function () { return null; });
+    ver = last ? await Promise.race([newest, new Promise(function (r) { setTimeout(function () { r(null); }, 600); })]) : await newest;
+    if (!ver && last) ver = last;
+    if (!ver) { show("MLQ Solo needs the internet the first time it opens. If this keeps showing, open MLQ Solo on a PC once (it puts the phone version in the cloud).", true); return; }
+    var base = S + "v" + ver + "/", html;
+    try {
+      var p = await timeout(fetch(base + "index.html", { cache: "force-cache" }), 15000);
+      if (!p.ok) throw new Error("HTTP " + p.status);
+      html = await p.text();
+    } catch (e) { show("Couldn't open MLQ Solo. Check your internet and try again.", true); return; }
+    // every relative address (scripts, styles, icons) now points at that version in the cloud
+    html = html.replace("<head>", "<head><base href=\"" + base + "\"><script>window.SOLO_BASE=" + JSON.stringify(base) + ";window.SOLO_NATIVE=true;window.SOLO_SHELL=1;<" + "/script>");
+    document.open(); document.write(html); document.close();
+  }
+  window.soloStart = start;
+  document.addEventListener("DOMContentLoaded", start);
+})();
+</script></head>
+<body><div id="boot"><div><img src="icon-192.png" alt=""><p id="msg">Opening MLQ Solo…</p><button id="retry" style="display:none" onclick="soloStart()">Try Again</button></div></div></body></html>

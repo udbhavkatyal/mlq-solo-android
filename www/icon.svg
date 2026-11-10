@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset=".55" stop-color="#8b5cf6"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>
+    <radialGradient id="sh" cx=".3" cy=".18" r=".9"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="120" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="120" fill="url(#sh)"/>
+  <!-- the mascot, centred in the square -->
+  <g transform="translate(256 262) scale(1.04) translate(-256 -231)">
+  <g stroke="#15111f" stroke-width="22" stroke-linejoin="round">
+    <path d="M128 168 L146 86 Q150 72 163 79 L222 122 Q256 114 290 122 L349 79 Q362 72 366 86 L384 168 Q404 204 404 250 Q404 356 256 376 Q108 356 108 250 Q108 204 128 168 Z" fill="#f6f4ff"/>
+  </g>
+  <!-- inner ears -->
+  <path d="M158 112 L171 98 L204 124 Q182 132 166 146 Z" fill="#c4b5fd"/>
+  <path d="M354 112 L341 98 L308 124 Q330 132 346 146 Z" fill="#c4b5fd"/>
+  <!-- eyes, with a sparkle -->
+  <ellipse cx="196" cy="248" rx="34" ry="44" fill="#15111f"/>
+  <ellipse cx="316" cy="248" rx="34" ry="44" fill="#15111f"/>
+  <circle cx="207" cy="232" r="10" fill="#fff"/>
+  <circle cx="327" cy="232" r="10" fill="#fff"/>
+  <!-- nose and a little cat smile with one fang -->
+  <path d="M246 300 L266 300 L256 312 Z" fill="#15111f" stroke="#15111f" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M230 320 Q243 334 256 320 Q269 334 282 320" fill="none" stroke="#15111f" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
