@@ -1,0 +1,75 @@
+# Builds the MLQ Solo Android app (a signed APK) and publishes it as a GitHub Release.
+# Runs on every push to main, or by hand: Actions → Build Android APK → Run workflow.
+name: Build Android APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: android
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Install
+        run: npm ci
+      - name: Copy the app into the Android project
+        run: npx cap sync android
+      - name: Signing key and Firebase settings (from the repo's secrets)
+        env:
+          KEYSTORE_B64: ${{ secrets.SOLO_KEYSTORE_B64 }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then echo "::error::Add the SOLO_KEYSTORE_B64 secret (see SETUP.md)"; exit 1; fi
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then echo "::error::Add the GOOGLE_SERVICES_JSON secret (see SETUP.md)"; exit 1; fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/solo.keystore"
+          echo "MLQ_KEYSTORE_FILE=$RUNNER_TEMP/solo.keystore" >> "$GITHUB_ENV"
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+      - name: Download libraries through Google's mirror (Maven Central often refuses busy GitHub machines)
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/mirror.gradle <<'EOF'
+          def mirror = "https://maven-central.storage-download.googleapis.com/maven2/"
+          allprojects {
+              buildscript { repositories { maven { url mirror } } }
+              repositories { maven { url mirror } }
+          }
+          EOF
+      - name: Build the APK
+        working-directory: android
+        env:
+          MLQ_VERSION_CODE: ${{ github.run_number }}
+          MLQ_VERSION_NAME: 1.0.${{ github.run_number }}
+          MLQ_KEYSTORE_PASSWORD: ${{ secrets.SOLO_KEYSTORE_PASSWORD }}
+          MLQ_KEY_ALIAS: solo
+          MLQ_KEY_PASSWORD: ${{ secrets.SOLO_KEYSTORE_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          # a download hiccup shouldn't fail the build: try up to 3 times
+          for i in 1 2 3; do ./gradlew assembleRelease --no-daemon && break; [ "$i" = 3 ] && exit 1; echo "Retrying in 60s…"; sleep 60; done
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/MLQ-Solo.apk"
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: MLQ Solo ${{ github.run_number }}
+          body: Download MLQ-Solo.apk below and open it on the phone to install or update.
+          files: MLQ-Solo.apk
+          make_latest: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MLQ-Solo-apk
+          path: MLQ-Solo.apk
