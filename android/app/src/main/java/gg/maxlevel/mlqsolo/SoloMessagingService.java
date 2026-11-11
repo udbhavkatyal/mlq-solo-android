@@ -26,7 +26,13 @@ import org.json.JSONObject;
 // Each one has the cat icon for its kind, and one-tap buttons where they help (Start Timer, Mark Done, Reply).
 public class SoloMessagingService extends com.capacitorjs.plugins.pushnotifications.MessagingService {
 
-    static final String CH_URGENT = "solo_urgent_2", CH_REMIND = "solo_remind_1", CH_CHAT = "solo_chat_1", CH_UPDATES = "solo_updates_1", CH_QUIET = "solo_quiet_1";
+    static final String CH_URGENT = "solo_urgent_2", CH_REMIND = "solo_remind_2", CH_CHAT = "solo_chat_2", CH_UPDATES = "solo_updates_2", CH_MONEY = "solo_money_1", CH_QUIET = "solo_quiet_1";
+
+    // MLQ's own sounds: Marimba Duo for messages, Crystal Ping for money in, Glass Drop for the rest
+    private static void sound(android.content.Context ctx, NotificationChannel c, int raw) {
+        Uri u = Uri.parse("android.resource://" + ctx.getPackageName() + "/" + raw);
+        c.setSound(u, new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+    }
 
     @Override
     public void onMessageReceived(@NonNull RemoteMessage message) {
@@ -50,7 +56,10 @@ public class SoloMessagingService extends com.capacitorjs.plugins.pushnotificati
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
         if (nm == null) return;
         // (a channel's sound can't change once made: the first version used the phone's alarm, so it's replaced)
-        try { nm.deleteNotificationChannel("solo_urgent_1"); } catch (Throwable ignored) { }
+        // (solo_remind_1 stays: the timer check-in from the app uses it)
+        for (String old : new String[] { "solo_urgent_1", "solo_chat_1", "solo_updates_1" }) {
+            try { nm.deleteNotificationChannel(old); } catch (Throwable ignored) { }
+        }
         if (nm.getNotificationChannel(CH_URGENT) == null) {
             NotificationChannel c = new NotificationChannel(CH_URGENT, "Urgent Reminders", NotificationManager.IMPORTANCE_HIGH);
             c.setDescription("Not started, overdue commissions: an old-phone \"tring tring\" that keeps ringing until you look");
@@ -68,6 +77,7 @@ public class SoloMessagingService extends com.capacitorjs.plugins.pushnotificati
         if (nm.getNotificationChannel(CH_REMIND) == null) {
             NotificationChannel c = new NotificationChannel(CH_REMIND, "Reminders", NotificationManager.IMPORTANCE_HIGH);
             c.setDescription("Time to start, deadlines, habits, the daily target");
+            sound(ctx, c, R.raw.solo_notify);
             c.enableVibration(true);
             c.setVibrationPattern(new long[] { 0, 500, 250, 500, 250, 500 });
             c.enableLights(true);
@@ -75,16 +85,33 @@ public class SoloMessagingService extends com.capacitorjs.plugins.pushnotificati
             c.setLockscreenVisibility(NotificationCompat.VISIBILITY_PUBLIC);
             nm.createNotificationChannel(c);
         }
+        if (nm.getNotificationChannel("solo_remind_1") == null) {
+            NotificationChannel c = new NotificationChannel("solo_remind_1", "Timer Check-In", NotificationManager.IMPORTANCE_HIGH);
+            c.setDescription("Still working? while the timer runs");
+            sound(ctx, c, R.raw.solo_notify);
+            c.enableVibration(true);
+            nm.createNotificationChannel(c);
+        }
         if (nm.getNotificationChannel(CH_CHAT) == null) {
             NotificationChannel c = new NotificationChannel(CH_CHAT, "Messages", NotificationManager.IMPORTANCE_HIGH);
             c.setDescription("Chat between Hemank and Udbhav");
+            sound(ctx, c, R.raw.solo_chat);
             c.enableVibration(true);
             c.setVibrationPattern(new long[] { 0, 250, 150, 250 });
             nm.createNotificationChannel(c);
         }
         if (nm.getNotificationChannel(CH_UPDATES) == null) {
             NotificationChannel c = new NotificationChannel(CH_UPDATES, "Updates", NotificationManager.IMPORTANCE_DEFAULT);
-            c.setDescription("Money in, Workshop comments, partner updates");
+            c.setDescription("Workshop comments, partner updates");
+            sound(ctx, c, R.raw.solo_notify);
+            nm.createNotificationChannel(c);
+        }
+        if (nm.getNotificationChannel(CH_MONEY) == null) {
+            NotificationChannel c = new NotificationChannel(CH_MONEY, "Money In", NotificationManager.IMPORTANCE_HIGH);
+            c.setDescription("Payments and GameRush sales");
+            sound(ctx, c, R.raw.solo_money);
+            c.enableVibration(true);
+            c.setVibrationPattern(new long[] { 0, 120, 80, 120 });
             nm.createNotificationChannel(c);
         }
         if (nm.getNotificationChannel(CH_QUIET) == null) {
@@ -136,6 +163,7 @@ public class SoloMessagingService extends com.capacitorjs.plugins.pushnotificati
         try { level = Integer.parseInt(val(d, "level", "1")); } catch (Exception ignored) { }
         String ch = val(d, "channel", "updates");
         String channel = "urgent".equals(ch) ? CH_URGENT : "remind".equals(ch) ? CH_REMIND : "chat".equals(ch) ? CH_CHAT : "quiet".equals(ch) ? CH_QUIET : CH_UPDATES;
+        if ("money".equals(kind) && level < 3 && !CH_QUIET.equals(channel)) channel = CH_MONEY;
         String tag = val(d, "tag", "solo-" + System.currentTimeMillis());
         int req = tag.hashCode();
 

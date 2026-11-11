@@ -37,7 +37,7 @@
         <!-- notifications: the cat as the small icon, purple, and the channel used if a message doesn't name one -->
         <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_solo" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/mlqAccent" />
-        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="solo_remind_1" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="solo_remind_2" />
 
         <!-- MLQ Solo draws its own notifications (alarm-style urgent ones, cat icons, buttons), in place of the plugin's plain ones -->
         <service android:name="com.capacitorjs.plugins.pushnotifications.MessagingService" tools:node="remove" />
