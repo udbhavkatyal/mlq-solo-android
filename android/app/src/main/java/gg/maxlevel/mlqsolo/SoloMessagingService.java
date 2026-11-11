@@ -26,7 +26,7 @@ import org.json.JSONObject;
 // Each one has the cat icon for its kind, and one-tap buttons where they help (Start Timer, Mark Done, Reply).
 public class SoloMessagingService extends com.capacitorjs.plugins.pushnotifications.MessagingService {
 
-    static final String CH_URGENT = "solo_urgent_1", CH_REMIND = "solo_remind_1", CH_CHAT = "solo_chat_1", CH_UPDATES = "solo_updates_1", CH_QUIET = "solo_quiet_1";
+    static final String CH_URGENT = "solo_urgent_2", CH_REMIND = "solo_remind_1", CH_CHAT = "solo_chat_1", CH_UPDATES = "solo_updates_1", CH_QUIET = "solo_quiet_1";
 
     @Override
     public void onMessageReceived(@NonNull RemoteMessage message) {
@@ -49,11 +49,13 @@ public class SoloMessagingService extends com.capacitorjs.plugins.pushnotificati
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
         if (nm == null) return;
+        // (a channel's sound can't change once made: the first version used the phone's alarm, so it's replaced)
+        try { nm.deleteNotificationChannel("solo_urgent_1"); } catch (Throwable ignored) { }
         if (nm.getNotificationChannel(CH_URGENT) == null) {
             NotificationChannel c = new NotificationChannel(CH_URGENT, "Urgent Reminders", NotificationManager.IMPORTANCE_HIGH);
-            c.setDescription("Not started, overdue commissions: rings like an alarm until you look");
-            Uri alarm = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-            if (alarm == null) alarm = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            c.setDescription("Not started, overdue commissions: an old-phone \"tring tring\" that keeps ringing until you look");
+            // MLQ Solo's own ring (res/raw/solo_urgent.ogg), played on the alarm volume so silent mode doesn't hide it
+            Uri alarm = Uri.parse("android.resource://" + ctx.getPackageName() + "/" + R.raw.solo_urgent);
             c.setSound(alarm, new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
             c.enableVibration(true);
             c.setVibrationPattern(new long[] { 0, 900, 300, 900, 300, 900, 300, 900 });
