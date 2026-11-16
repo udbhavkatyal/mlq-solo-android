@@ -15,6 +15,8 @@ import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.app.Person;
+import androidx.core.app.RemoteInput;
 import androidx.core.content.ContextCompat;
 import com.google.firebase.messaging.RemoteMessage;
 import java.util.Map;
@@ -166,6 +168,7 @@ public class SoloMessagingService extends com.capacitorjs.plugins.pushnotificati
         if ("money".equals(kind) && level < 3 && !CH_QUIET.equals(channel)) channel = CH_MONEY;
         String tag = val(d, "tag", "solo-" + System.currentTimeMillis());
         int req = tag.hashCode();
+        if ("chat".equals(kind)) { showChat(this, val(d, "sender", title), body, go, channel); return; }
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(this, channel)
             .setSmallIcon(R.drawable.ic_stat_solo)
@@ -204,5 +207,84 @@ public class SoloMessagingService extends com.capacitorjs.plugins.pushnotificati
             return;
         }
         NotificationManagerCompat.from(this).notify(tag, 1, b.build());
+    }
+
+    /* ---------------- chat: one conversation notification with every unread message, and a quick reply ---------------- */
+    static final String CHAT_TAG = "chat";
+    private static final String HIST = "mlq_chat";
+
+    private static synchronized JSONArray history(android.content.Context c) {
+        try { return new JSONArray(c.getSharedPreferences(HIST, MODE_PRIVATE).getString("h", "[]")); } catch (Exception e) { return new JSONArray(); }
+    }
+
+    private static synchronized void addHistory(android.content.Context c, String who, String text) {
+        try {
+            JSONArray h = history(c), out = new JSONArray();
+            h.put(new JSONObject().put("who", who).put("text", text).put("at", System.currentTimeMillis()));
+            for (int i = Math.max(0, h.length() - 8); i < h.length(); i++) out.put(h.get(i));
+            c.getSharedPreferences(HIST, MODE_PRIVATE).edit().putString("h", out.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
+    /** The app was opened: the conversation is read. */
+    static synchronized void clearChat(android.content.Context c) {
+        c.getSharedPreferences(HIST, MODE_PRIVATE).edit().remove("h").apply();
+        try { NotificationManagerCompat.from(c).cancel(CHAT_TAG, 1); } catch (Throwable ignored) { }
+    }
+
+    private static PendingIntent openChat(android.content.Context c) {
+        Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse("mlqsolo://open?go=%7B%22view%22%3A%22chat%22%7D&ntag=chat"), c, MainActivity.class);
+        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        return PendingIntent.getActivity(c, 9101, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    static void showChat(android.content.Context c, String sender, String text, String go, String channel) {
+        addHistory(c, sender, text);
+        postChat(c, false, null);
+    }
+
+    /** After a quick reply: show it in the conversation (quietly), or say it didn't send. */
+    static void afterReply(android.content.Context c, String text, boolean ok) {
+        if (ok) addHistory(c, "", text);
+        postChat(c, true, ok ? null : "Couldn't send. Open MLQ Solo to try again.");
+    }
+
+    private static void postChat(android.content.Context c, boolean quiet, String error) {
+        if (Build.VERSION.SDK_INT >= 33
+            && ContextCompat.checkSelfPermission(c, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
+        channels(c);
+        Person you = new Person.Builder().setName("You").build();
+        NotificationCompat.MessagingStyle st = new NotificationCompat.MessagingStyle(you);
+        JSONArray h = history(c);
+        String last = "";
+        for (int i = 0; i < h.length(); i++) {
+            JSONObject m = h.optJSONObject(i);
+            if (m == null) continue;
+            String who = m.optString("who", "");
+            Person p = who.isEmpty() ? null : new Person.Builder().setName(who).setKey(who).build();
+            st.addMessage(m.optString("text", ""), m.optLong("at", System.currentTimeMillis()), p);
+            if (!who.isEmpty()) last = who;
+        }
+        if (error != null) st.addMessage(error, System.currentTimeMillis(), (Person) null);
+        Intent ri = new Intent(c, ReplyReceiver.class);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
+        PendingIntent replyPi = PendingIntent.getBroadcast(c, 9102, ri, flags);
+        RemoteInput input = new RemoteInput.Builder(ReplyReceiver.KEY_TEXT).setLabel(last.isEmpty() ? "Reply" : "Reply to " + last).build();
+        NotificationCompat.Action reply = new NotificationCompat.Action.Builder(0, "Reply", replyPi)
+            .addRemoteInput(input).setAllowGeneratedReplies(true).setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY).setShowsUserInterface(false).build();
+        NotificationCompat.Builder b = new NotificationCompat.Builder(c, CH_CHAT)
+            .setSmallIcon(R.drawable.ic_stat_solo)
+            .setColor(0xFF8B5CF6)
+            .setStyle(st)
+            .setContentIntent(openChat(c))
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(quiet)
+            .setSilent(quiet)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .addAction(reply);
+        if (h.length() > 1) b.setNumber(h.length());
+        try { NotificationManagerCompat.from(c).notify(CHAT_TAG, 1, b.build()); } catch (SecurityException ignored) { }
     }
 }
